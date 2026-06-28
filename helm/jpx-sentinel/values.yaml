@@ -1,0 +1,75 @@
+# --------------------------------------------------
+# 공통 설정 (Global Configuration)
+# --------------------------------------------------
+# 전체 애플리케이션에서 공통으로 참조할 값들을 정의합니다.
+global:
+  db:
+    # DB 접속 주소 (RDS Endpoint)
+    host: "terraform-2026061815445838130000000f.cxsu6ggc65n5.ap-northeast-1.rds.amazonaws.com"
+    port: 3306
+    # 데이터베이스 이름 (secret.yaml의 'db-name' 키와 매핑)
+    name: "jpx_database"
+    # DB 사용자명 (secret.yaml의 'username' 키와 매핑)
+    username: "db_user"
+    # DB 비밀번호 (secret.yaml의 'password' 키와 매핑)
+    password: "12345678"
+  
+  # Slack 알림용 Webhook URL (secret.yaml의 'slack_webhook_url' 키와 매핑)
+
+# --------------------------------------------------
+# Java Backend (Spring Boot API) 설정
+# --------------------------------------------------
+backend:
+  # ECS desired_count와 동일한 개념: 실행할 파드 개수
+  replicaCount: 1
+
+  image:
+    # ECR Java Repository URL
+    repository: 264143700981.dkr.ecr.ap-northeast-1.amazonaws.com/jpx-java
+    # 이미지 태그: 배포 버전 관리 시 사용
+    tag: latest
+
+  # 파드별 자원 할당량 (EKS 노드 리소스 최적화용)
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+  # 애플리케이션 상태 체크 설정 (404/Timeout 방지)
+  # 주의: 애플리케이션 내부에 해당 경로가 구현되어 있어야 합니다.
+  livenessProbe:
+    enabled: false
+    initialDelaySeconds: 60  # 앱 시작 후 대기 시간
+    periodSeconds: 20
+  readinessProbe:
+    enabled: false
+    initialDelaySeconds: 30  # 트래픽 받기 전 준비 시간
+    periodSeconds: 10
+
+# --------------------------------------------------
+# Python Collector (데이터 수집/분석) 설정
+# --------------------------------------------------
+collector:
+  image:
+    # ECR Python Repository URL
+    repository: 264143700981.dkr.ecr.ap-northeast-1.amazonaws.com/jpx-python
+    # 이미지 태그
+    tag: v2
+
+  # CronJob 실행 시간 (Unix Cron 포맷)
+  # 기존: 매일 아침 9시 ("0 9 * * *")
+  # 변경: 평일(월~금) 오후 5시 ("0 17 * * 1-5")
+  # 참고: 서버 시간대가 UTC인 경우 KST 기준을 위해 "0 8 * * 1-5"로 조정 필요할 수 있음
+  schedule: "0 17 * * 1-5"
+
+  # Selenium/Chrome 구동을 위한 자원 할당 (메모리 부족 방지)
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1024Mi
+    requests:
+      cpu: 500m
+      memory: 512Mi

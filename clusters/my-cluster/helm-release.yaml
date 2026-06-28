@@ -1,0 +1,17 @@
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: jpx-sentinel
+  namespace: flux-system
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: ./helm/jpx-sentinel # 이미지 image_173213.png에 있는 경로
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+  values:
+    # values.yaml에 있는 값들을 여기서 오버라이딩 가능
+    replicaCount: 2

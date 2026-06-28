@@ -1,0 +1,111 @@
+# -------------------------------------------------------------------------
+# Python Collector CronJob
+# -------------------------------------------------------------------------
+# [Migration Summary]
+# ECS: aws_ecs_service (python_service) -> 24/7 상시 실행
+# EKS: Kubernetes CronJob (jpx-python-collector) -> 스케줄 예약 실행
+#
+# [Technical Advantages]
+# 1. 비용 절감: 실행 시에만 Node 자원을 점유합니다.
+# 2. Chrome 안정성: ECS의 'dshm' 볼륨을 K8s 'emptyDir(Memory)'로 완벽 이관.
+# 3. 사이드카 패턴: Python 앱과 Chrome 브라우저가 동일 Pod 내에서 localhost로 통신.
+# 4. 자동 리소스 회수: 작업 완료 후 ttlSecondsAfterFinished를 통해 파드 자동 삭제.
+# -------------------------------------------------------------------------
+
+apiVersion: batch/v1
+kind: CronJob
+
+metadata:
+  name: jpx-python-collector
+  labels:
+    app: jpx-python-collector
+
+spec:
+  schedule: {{ .Values.collector.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+
+  jobTemplate:
+    spec:
+      # 작업(Job) 완료 후 100초 뒤에 파드를 자동으로 삭제하여 리소스 정리
+      ttlSecondsAfterFinished: 100 
+      template:
+        spec:
+          restartPolicy: OnFailure
+
+          containers:
+            # ------------------------------------------------------
+            # 1. Python Collector Container (Main)
+            # ------------------------------------------------------
+            - name: jpx-python-collector
+              image: "{{ .Values.collector.image.repository }}:{{ .Values.collector.image.tag }}"
+              
+              env:
+                - name: TZ
+                  value: "Asia/Seoul"
+                
+                # DB 연결 정보 및 Slack Webhook URL을 jpx-db-secret에서 주입
+                - name: DB_HOST
+                  valueFrom:
+                    secretKeyRef:
+                      name: jpx-db-secret
+                      key: db-host
+                - name: DB_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: jpx-db-secret
+                      key: username
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: jpx-db-secret
+                      key: password
+                - name: DB_NAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: jpx-db-secret
+                      key: db-name
+                - name: SLACK_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: jpx-db-secret
+                      key: slack_webhook_url
+
+              ports:
+                - containerPort: 8080
+              
+              resources:
+                limits:
+                  cpu: {{ .Values.collector.resources.limits.cpu | quote }}
+                  memory: {{ .Values.collector.resources.limits.memory | quote }}
+                requests:
+                  cpu: {{ .Values.collector.resources.requests.cpu | quote }}
+                  memory: {{ .Values.collector.resources.requests.memory | quote }}
+
+            # ------------------------------------------------------
+            # 2. Chrome Sidecar Container (Browser)
+            # ------------------------------------------------------
+            - name: chrome
+              image: "selenium/standalone-chrome:4.18.1"
+              env:
+                - name: TZ
+                  value: "Asia/Seoul"
+
+              ports:
+                - containerPort: 4444
+                  protocol: TCP
+
+              volumeMounts:
+                - name: dshm
+                  mountPath: /dev/shm
+
+              resources:
+                limits:
+                  cpu: "500m"
+                  memory: "512Mi"
+
+          volumes:
+            - name: dshm
+              emptyDir:
+                medium: Memory

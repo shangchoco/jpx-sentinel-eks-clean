@@ -1,0 +1,60 @@
+services:
+  # Chromeブラウザコンテナ
+  chrome:
+    image: selenium/standalone-chrome:latest
+    shm_size: 2gb
+    ports:
+      - "4444:4444"
+      - "7900:7900"
+
+  # MySQLデータベースコンテナ
+  db:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: jpx_database
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql # コンテナ終了後もデータを保持するためのボリューム
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      # ヘルスチェック: ルートパスワードを指定してpingを送信
+      test: ["CMD-SHELL", "mysqladmin ping -uroot -p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Pythonスクレイピングアプリ
+  app:
+    build: .
+    environment:
+      - PYTHONUNBUFFERED=1 # 出力をバッファリングせず即時ターミナルへ表示
+    image: python:3.13-slim
+    volumes:
+      - .:/app
+    working_dir: /app
+    ports:
+      - "5000:5000"
+    depends_on:
+      chrome:
+        condition: service_started
+      db:
+        condition: service_healthy # DBが完全に起動（Healthy）した後に連携
+    command: python main.py
+
+  # ★ Spring Boot バックエンドメインサーバー設定 ★
+  backend:
+    build: 
+      context: ./backend # ビルドコンテキストのパス
+      dockerfile: Dockerfile # Dockerfileの指定
+    ports:
+      - "8080:8080" # ローカルからのアクセス用ポート開放
+    depends_on:
+      db:
+        # DBが完全に稼働（Healthy）するまで、バックエンドの起動を待機させる
+        condition: service_healthy
+
+volumes:
+  mysql_data:

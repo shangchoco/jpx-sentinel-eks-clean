@@ -1,0 +1,27 @@
+apiVersion: v2
+name: jpx-sentinel
+description: JPX Sentinel on Amazon EKS
+type: application
+
+# 버전 관리 (SemVer 준수)
+version: 0.1.0
+appVersion: "1.0.0"
+
+# 인프라 운영 팀을 위한 메타데이터
+keywords:
+  - eks
+  - java
+  - python
+  - scraper
+  - jpx
+
+# 운영 담당자 정보
+maintainers:
+  - name: HIBIYA
+    email: cherrypetal8764@gmail.com
+
+# 외부 차트를 사용할 경우 (예: AWS Load Balancer Controller 등)
+# dependencies:
+#   - name: aws-load-balancer-controller
+#     version: 1.9.0
+#     repository: https://aws.github.io/eks-charts

@@ -1,0 +1,24 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    # 💡 [중요] Kubernetes 환경 변수(DB_HOST, DB_USERNAME, DB_PASSWORD)를 참조하도록 설정
+    # 배포 시점에서 쿠버네티스가 주입하는 환경 변수가 하드코딩된 값보다 우선순위를 갖습니다.
+    # 만약 환경변수 로딩이 안 될 경우를 대비해, 가급적 문자열 결합 없이 직접 참조하게 합니다.
+    url: jdbc:mysql://${DB_HOST}:3306/${DB_NAME}?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=UTF-8&serverTimezone=Asia/Tokyo
+    
+    # 환경 변수를 통해 사용자명과 비밀번호를 주입받아 보안을 강화합니다.
+    # 주의: 이 값이 환경변수에서 제대로 로드되지 않으면 DB 접속 실패가 발생합니다.
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    # 데이터베이스 방언(Dialect) 설정: 최신 Hibernate는 자동 감지하므로 불필요 시 삭제 가능
+    database-platform: org.hibernate.dialect.MySQLDialect
+    hibernate:
+      # 운영 환경에서는 데이터 손실을 방지하기 위해 'validate' 혹은 'none' 권장
+      ddl-auto: validate
+    # SQL 로그 출력 설정 (디버깅 용도)
+    show-sql: true

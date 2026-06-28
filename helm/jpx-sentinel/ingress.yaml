@@ -1,0 +1,48 @@
+# -------------------------------------------------------------------------
+# JPX Sentinel Ingress
+# -------------------------------------------------------------------------
+# [Migration Summary]
+# ECS: ALB Listener Rules (Path-based Routing)
+# EKS: Kubernetes Ingress (AWS Load Balancer Controller)
+#
+# 이 리소스는 AWS Load Balancer Controller에 의해 감지되어
+# 자동으로 AWS ALB를 생성하고, 정의된 경로에 따라 트래픽을 분기합니다.
+# -------------------------------------------------------------------------
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+
+metadata:
+  name: jpx-ingress
+  annotations:
+    # ALB Controller가 이 설정을 처리하도록 지정
+    kubernetes.io/ingress.class: alb
+    # 외부 인터넷 연결을 허용
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    # Fargate/EKS 파드 IP로 직접 트래픽 전달 (성능 최적화)
+    alb.ingress.kubernetes.io/target-type: ip
+
+spec:
+  rules:
+    - http:
+        paths:
+          # [주의] Python Collector는 현재 CronJob으로 실행되므로 상시 서비스(Service)가 없습니다.
+          # 추후 파이썬 상시 서비스 추가 시 아래 주석을 풀고 서비스 이름을 매칭하세요.
+          # - path: /python/
+          #   pathType: Prefix
+          #   backend:
+          #     service:
+          #       name: jpx-python-service
+          #       port:
+          #         number: 8080
+
+          # 2. Java Backend 경로 (기본값 /)
+          # ECS ALB 기본 동작(Default Action)을 대체
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                # [중요] 실제 배포된 Java Service 이름과 일치 (kubectl get svc 확인)
+                name: jpx-java-backend
+                port:
+                  number: 8080

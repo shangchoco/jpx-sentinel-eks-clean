@@ -1,0 +1,37 @@
+# -------------------------------------------------------------------------
+# Application Configuration (ConfigMap)
+# -------------------------------------------------------------------------
+# [Migration Summary]
+# ECS Task Environment Variables를 Kubernetes ConfigMap으로 이관합니다.
+# 애플리케이션의 공통 설정(DB Host, DB Name 등)을 중앙에서 관리하여
+# Pod의 설정 변경 시 Deployment 재배포 없이 유연하게 대응합니다.
+# -------------------------------------------------------------------------
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  # Helm 릴리스 이름을 포함한 고유한 ConfigMap 이름 생성
+  name: {{ include "jpx-sentinel.fullname" . }}-config
+  labels:
+    app: jpx-sentinel
+    managed-by: helm
+
+data:
+  # [Database Connection Configuration]
+  # 백엔드 및 수집기(Collector)가 공통으로 참조하는 DB 엔드포인트
+  DB_HOST: {{ .Values.global.db.host | quote }}
+  
+  # 데이터베이스 스키마 이름
+  DB_NAME: {{ .Values.global.db.database | quote }}
+  
+  # 데이터베이스 사용자 계정
+  DB_USER: {{ .Values.global.db.username | quote }}
+
+  # [Application Environment Settings]
+  # 💡 BATCH 모드(스크래핑) 진입 방지 및 기본 서비스 모드 정의
+  SERVER_MODE: "WEB"
+
+  # [기타 설정들]
+  # 필요에 따라 아래에 추가적인 환경 변수를 기입하세요.
+  # 예: LOG_LEVEL: "INFO"
+  # 예: API_TIMEOUT: "30"

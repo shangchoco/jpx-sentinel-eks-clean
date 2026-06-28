@@ -1,0 +1,118 @@
+# -------------------------------------------------------------------------
+# Java Backend Deployment
+# -------------------------------------------------------------------------
+# [Migration Summary]
+# ECS: aws_ecs_service (java_service) + aws_ecs_task_definition (java_app)
+# EKS: Kubernetes Deployment (jpx-java-backend)
+#
+# ECS Fargate의 Task Blueprint를 Kubernetes의 선언적 Deployment로 변환하며,
+# 리소스 제한 및 Helm 변수를 통한 유연한 이미지 관리를 포함합니다.
+# -------------------------------------------------------------------------
+
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  # ECS의 Service Name에 해당하는 K8s 리소스 식별자
+  name: jpx-java-backend
+  labels:
+    app: jpx-java-backend
+
+spec:
+  # [ECS desired_count = 1]
+  # 실행할 최소 파드 수를 지정합니다. values.yaml의 replicaCount와 연동됩니다.
+  replicas: {{ .Values.backend.replicaCount }}
+
+  # Deployment가 관리할 파드를 식별하는 기준
+  selector:
+    matchLabels:
+      app: jpx-java-backend
+
+  # 실제 생성될 파드(Pod)의 구성 정보 (ECS의 Task Definition 부분)
+  template:
+    metadata:
+      labels:
+        app: jpx-java-backend
+    
+    spec:
+      containers:
+        # [ECS container_definitions - name: "jpx-java-backend"]
+        - name: jpx-java-backend
+
+          # [ECS image - aws_ecr_repository.java_repo.repository_url]
+          # ECR 주소와 태그를 Helm 변수로 결합하여 배포 시점에 결정합니다.
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          
+          # 배포 시 항상 최신 이미지를 가져오도록 설정 (권장사항)
+          imagePullPolicy: Always
+
+          ports:
+            # [ECS containerPort: 8080]
+            # Spring Boot 백엔드가 수신 대기하는 포트입니다.
+            - containerPort: 8080
+              protocol: TCP
+
+          # [Health Check]
+          # 파드의 상태를 주기적으로 체크하여 자동 복구 수행
+          {{- if .Values.backend.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: {{ .Values.backend.livenessProbe.initialDelaySeconds | default 30 }}
+            periodSeconds: {{ .Values.backend.livenessProbe.periodSeconds | default 10 }}
+          {{- end }}
+          {{- if .Values.backend.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: {{ .Values.backend.readinessProbe.initialDelaySeconds | default 10 }}
+            periodSeconds: {{ .Values.backend.readinessProbe.periodSeconds | default 5 }}
+          {{- end }}
+
+          # [DB Connection & Environment Variables]
+          # values.yaml의 global 설정을 참조하여 환경 변수를 주입합니다.
+          env:
+            # 💡 [중요] BATCH 모드(스크래핑) 진입 방지: WEB 모드로 강제 설정
+            - name: SERVER_MODE
+              value: "WEB"
+            
+            # DB 엔드포인트 및 접속 정보 설정
+            - name: DB_HOST
+              value: {{ .Values.global.db.host | quote }}
+            - name: DB_NAME
+              value: {{ .Values.global.db.name | quote }} # 수정 완료: .database -> .name
+            
+            # 💡 [보안] DB 접속 정보는 K8s Secret 리소스를 통해 관리합니다.
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: jpx-db-secret
+                  key: username
+            
+            # 💡 [보안] 비밀번호는 K8s Secret 리소스를 통해 관리합니다.
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: jpx-db-secret
+                  key: password
+            
+            # 💡 [보안] 슬랙 웹훅 URL은 K8s Secret 리소스를 통해 관리합니다.
+            - name: SLACK_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: jpx-db-secret
+                  key: slack_webhook_url
+
+          # [ECS CPU/Memory Limits]
+          # ECS Fargate에서 설정했던 하드웨어 스펙을 K8s의 Requests/Limits로 정밀하게 정의합니다.
+          resources:
+            # Limits: 컨테이너가 사용할 수 있는 최대 자원 (OOM 방지)
+            limits:
+              cpu: {{ .Values.backend.resources.limits.cpu | quote }}
+              memory: {{ .Values.backend.resources.limits.memory | quote }}
+            # Requests: 스케줄러가 노드를 선택할 때 보장하는 최소 자원
+            requests:
+              cpu: {{ .Values.backend.resources.requests.cpu | quote }}
+              memory: {{ .Values.backend.resources.requests.memory | quote }}
