@@ -14,8 +14,7 @@ global:
     # DB 비밀번호 (secret.yaml의 'password' 키와 매핑)
     password: "12345678"
   
-  # Slack 알림용 Webhook URL (secret.yaml의 'slack_webhook_url' 키와 매핑)
-
+# Slack 알림용 Webhook URL (secret.yaml의 'slack_webhook_url' 키와 매핑)
 # --------------------------------------------------
 # Java Backend (Spring Boot API) 설정
 # --------------------------------------------------
@@ -62,7 +61,8 @@ collector:
   # CronJob 실행 시간 (Unix Cron 포맷)
   # 기존: 매일 아침 9시 ("0 9 * * *")
   # 변경: 평일(월~금) 오후 5시 ("0 17 * * 1-5")
-  # 참고: 서버 시간대가 UTC인 경우 KST 기준을 위해 "0 8 * * 1-5"로 조정 필요할 수 있음
+  # timeZone을 Asia/Tokyo로 설정하여 KST/JST 기준 오후 5시에 실행되도록 함
+  timeZone: "Asia/Tokyo"
   schedule: "0 17 * * 1-5"
 
   # Selenium/Chrome 구동을 위한 자원 할당 (메모리 부족 방지)
